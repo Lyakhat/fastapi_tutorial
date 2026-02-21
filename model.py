@@ -8,4 +8,4 @@ class Book(Base):
     title = Column(VARCHAR(255))
     author = Column(VARCHAR(255))
     publish_date = Column(VARCHAR(255))
-    
+    description = "i am a boy"
