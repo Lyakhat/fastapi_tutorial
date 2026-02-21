@@ -11,4 +11,4 @@ class UserCreate(BaseModel):
 #Schema for user login
 class UserLogin(BaseModel):
     username: str
-    password: str
+    password: str 
