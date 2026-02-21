@@ -4,12 +4,16 @@ import models, schemas, utils
 from auth_database import get_db
 from jose import jwt
 from datetime import datetime, timedelta
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from jose import JWTError
 
 
 SECRET_KEY = "P1BLoxugz9Ic95UyNYJd3jQzrRgjBjKJc90bBZ1uQSA"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # helper function that takes user data
 def create_access_token(data:dict):
@@ -60,3 +64,44 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db:Session = Depends
     token_data = {'sub': user.username, 'role': user.role}
     token = create_access_token(token_data)
     return {"access_token": token, "token_type": "bearer"}
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credential_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credential",
+    headers={"WW Authenricate": "Bearer"})     
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=ALGORITHM)
+        username: str = payload.get("sub")
+        role: str = payload.get("role")
+        if username is None or role is None:
+            raise credential_exception
+        
+    except JWTError:
+        raise credential_exception
+    
+    return{"username": username, "role": role}
+
+@app.get("/protected")
+def protected_route(current_user: dict = Depends(get_current_user)):
+    return {"Messege": f"Hello, {current_user['username']} | You accessed a protected route"}
+
+def require_roles(allowed_roles: list[str]):
+    def role_checker(current_user: dict = Depends(get_current_user)):
+        user_role = current_user.get("role")
+        if user_role not in allowed_roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permission")
+        
+        return current_user
+    return role_checker
+
+@app.get("/profile")
+def profile(current_user: dict = Depends(require_roles(["user", "admin"]))):
+    return {"messege": f"Profile of {current_user['username']} ({current_user['role']})"}
+
+@app.get("/user/dashboard")
+def user_dashboard(current_user: dict = Depends(require_roles(["user"]))):
+    return {"messege": "Welcome User"}
+
+@app.get("/admin/dashboard")
+def user_dashboard(current_user: dict = Depends(require_roles(["admin"]))):
+    return {"messege": "Welcome Admin"}
